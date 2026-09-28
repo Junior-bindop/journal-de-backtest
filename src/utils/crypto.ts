@@ -3,31 +3,16 @@
  * Secure, offline-capable, and portable.
  */
 
+import SHA256 from 'crypto-js/sha256';
+
 const SALT = 'BacktestApp_Salt_2026_SecureKey_';
 
 export async function hashPassword(password: string): Promise<string> {
   const salted = SALT + password;
-
-  if (typeof crypto !== 'undefined' && crypto.subtle) {
-    try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(salted);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    } catch (e) {
-      console.warn("Crypto API fallback activated", e);
-    }
-  }
-
-  // Fallback for non-HTTPS local networks (offline mode)
-  let hash = 0;
-  for (let i = 0; i < salted.length; i++) {
-    const char = salted.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return 'fallback_' + Math.abs(hash).toString(16);
+  
+  // We use crypto-js to ensure the hash is perfectly identical (SHA-256)
+  // whether the user is online (HTTPS) or offline (HTTP local IP).
+  return SHA256(salted).toString();
 }
 
 export async function verifyPassword(password: string, expectedHash: string): Promise<boolean> {
