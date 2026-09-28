@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Lock, UserCheck, Sparkles, AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Lock, UserCheck, Sparkles, AlertCircle, ArrowRight, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from './authContext';
 
 export const AuthPage: React.FC = () => {
   const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
-  const [username, setUsername] = useState('BINI_JR');
-  const [password, setPassword] = useState('password123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,7 +47,7 @@ export const AuthPage: React.FC = () => {
 
   const handleQuickLogin = (user: string) => {
     setUsername(user);
-    setPassword('password123');
+    setPassword('');
     setMode('login');
   };
 
@@ -64,6 +65,10 @@ export const AuthPage: React.FC = () => {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             Archivage durable, analyses approfondies & gestion multi-associés
           </p>
+
+          <h2 className="text-3xl font-black text-emerald-600 dark:text-emerald-500 mt-6 mb-2 tracking-widest uppercase">
+            WELCOME TO THE PAIN ZONE
+          </h2>
 
           {/* Quick preset associate badges */}
           <div className="mt-4 flex items-center justify-center space-x-2">
@@ -143,14 +148,23 @@ export const AuthPage: React.FC = () => {
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
               Mot de passe
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
-              required
-              className="w-full px-3.5 py-2 text-xs bg-gray-50 dark:bg-[#141414] border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                required
+                className="w-full px-3.5 py-2 text-xs bg-gray-50 dark:bg-[#141414] border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           {mode === 'register' && (
@@ -158,14 +172,23 @@ export const AuthPage: React.FC = () => {
               <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
                 Confirmation du mot de passe
               </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••••••"
-                required
-                className="w-full px-3.5 py-2 text-xs bg-gray-50 dark:bg-[#141414] border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  required
+                  className="w-full px-3.5 py-2 text-xs bg-gray-50 dark:bg-[#141414] border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           )}
 

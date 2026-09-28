@@ -585,7 +585,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                     ))
                   ) : (
                     <button
-                      onClick={() => setEditingTrade(trade)}
+                      onClick={() => executeWithProtection(() => setEditingTrade(trade))}
                       className="text-gray-400 text-[11px] italic hover:text-emerald-500"
                     >
                       + Ajouter
@@ -638,7 +638,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                 {/* Actions: Edit row & Delete/Restore */}
                 <div className="w-24 px-2 py-2 text-center shrink-0 flex items-center justify-center space-x-1.5">
                   <button
-                    onClick={() => setEditingTrade(trade)}
+                    onClick={() => executeWithProtection(() => setEditingTrade(trade))}
                     className="p-1 text-gray-400 hover:text-emerald-600 hover:bg-emerald-500/10 rounded transition-colors"
                     title="Modifier tout le trade (Propriétés et captures)"
                   >

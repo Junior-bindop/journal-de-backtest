@@ -45,13 +45,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Auto-login BINI_JR as default associate on first boot
+    // Initialize auth
     const initAuth = async () => {
       const users = await db.users.toArray();
       setAllAssociates(users);
 
-      const savedUserId = localStorage.getItem('last_user_id');
-      const foundUser = users.find(u => u.id === savedUserId) || users[0];
+      const savedUserId = sessionStorage.getItem('session_user_id') || localStorage.getItem('last_user_id');
+      const foundUser = users.find(u => u.id === savedUserId);
 
       if (foundUser) {
         setCurrentUser(foundUser);
