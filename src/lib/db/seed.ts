@@ -4,6 +4,23 @@ import type { User, CustomColumn, SelectOption, Trade, TradeCustomValue } from '
 
 export async function initializeDatabase(): Promise<void> {
   const usersCount = await db.users.count();
+
+  // Migration: rehash all default passwords with the current algorithm
+  // This fixes login issues when the hashing method changes (e.g. crypto.subtle -> standalone SHA-256)
+  const migrationKey = 'password_hash_migrated_v2';
+  if (usersCount > 0 && !localStorage.getItem(migrationKey)) {
+    console.log('[DB] Migrating password hashes to current algorithm...');
+    const defaultPassword = 'password123';
+    const newHash = await hashPassword(defaultPassword);
+    const allUsers = await db.users.toArray();
+    for (const user of allUsers) {
+      await db.users.update(user.id, { password_hash: newHash });
+    }
+    localStorage.setItem(migrationKey, 'true');
+    console.log('[DB] Password hash migration complete.');
+    return;
+  }
+
   if (usersCount > 0) {
     return; // Already initialized
   }
