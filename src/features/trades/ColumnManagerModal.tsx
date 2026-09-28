@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Settings, Tag, Palette } from 'lucide-react';
 import { db } from '@/lib/db';
 import { generateUUID } from '@/utils/crypto';
@@ -49,6 +49,18 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
   // System options category
   const [selectedSystemKey, setSelectedSystemKey] = useState<string>('asset');
 
+  // Optimistic local state for instantaneous responsiveness
+  const [localCols, setLocalCols] = useState<CustomColumn[]>(customColumns);
+  const [localOpts, setLocalOpts] = useState<SelectOption[]>(selectOptions);
+
+  useEffect(() => {
+    setLocalCols(customColumns);
+  }, [customColumns]);
+
+  useEffect(() => {
+    setLocalOpts(selectOptions);
+  }, [selectOptions]);
+
   if (!isOpen) return null;
 
   const handleAddColumn = async (e: React.FormEvent) => {
@@ -60,28 +72,36 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
       user_id: userId,
       name: newColName.trim(),
       type: newColType,
-      sort_order: customColumns.length + 1,
+      sort_order: localCols.length + 1,
       is_visible: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    await db.custom_columns.add(newCol);
+    // Instant optimistic update
+    setLocalCols(prev => [...prev, newCol]);
     setNewColName('');
-    onColumnsChanged();
     if (newColType === 'SELECT' || newColType === 'MULTI-SELECT') {
       setSelectedColumnId(newCol.id);
     }
+
+    // Persist async
+    await db.custom_columns.add(newCol);
+    onColumnsChanged();
   };
 
   const handleDeleteColumn = async (columnId: string) => {
     if (!window.confirm('Voulez-vous supprimer cette colonne et toutes ses valeurs associées ?')) return;
 
+    // Instant optimistic update
+    setLocalCols(prev => prev.filter(c => c.id !== columnId));
+    setLocalOpts(prev => prev.filter(o => o.column_id !== columnId));
+    if (selectedColumnId === columnId) setSelectedColumnId(null);
+
+    // Persist async
     await db.custom_columns.delete(columnId);
     await db.select_options.where('column_id').equals(columnId).delete();
     await db.trade_custom_values.where('column_id').equals(columnId).delete();
-
-    if (selectedColumnId === columnId) setSelectedColumnId(null);
     onColumnsChanged();
   };
 
@@ -97,22 +117,30 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
       user_id: userId,
       label: newOptionLabel.trim(),
       color: newOptionColor,
-      sort_order: selectOptions.length + 1,
+      sort_order: localOpts.length + 1,
       created_at: new Date().toISOString(),
     };
 
-    await db.select_options.add(newOpt);
+    // Instant optimistic update
+    setLocalOpts(prev => [...prev, newOpt]);
     setNewOptionLabel('');
+
+    // Persist async
+    await db.select_options.add(newOpt);
     onColumnsChanged();
   };
 
   const handleDeleteOption = async (optionId: string) => {
+    // Instant optimistic update
+    setLocalOpts(prev => prev.filter(o => o.id !== optionId));
+
+    // Persist async
     await db.select_options.delete(optionId);
     onColumnsChanged();
   };
 
   // Filter options for current view
-  const currentOptions = selectOptions.filter((opt) => {
+  const currentOptions = localOpts.filter((opt) => {
     if (activeTab === 'columns') {
       return opt.column_id === selectedColumnId;
     } else {
@@ -131,7 +159,7 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
           >
             <X className="w-5 h-5" />
           </button>
@@ -147,7 +175,7 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
                 : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
             }`}
           >
-            Colonnes Personnalisées ({customColumns.length})
+            Colonnes Personnalisées ({localCols.length})
           </button>
           <button
             onClick={() => setActiveTab('system_options')}
@@ -177,7 +205,7 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
                       type="text"
                       value={newColName}
                       onChange={(e) => setNewColName(e.target.value)}
-                      placeholder="Ex: Setup, Emotion, Confluence..."
+                      placeholder="Ex: Setup, Émotion, Confluence..."
                       className="w-full px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#141414] border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white"
                       required
                     />
@@ -201,7 +229,7 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
 
                   <button
                     type="submit"
-                    className="flex items-center space-x-1.5 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm"
+                    className="flex items-center space-x-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Ajouter la colonne</span>
@@ -212,11 +240,11 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
                   <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">
                     Colonnes existantes
                   </h4>
-                  {customColumns.length === 0 ? (
+                  {localCols.length === 0 ? (
                     <p className="text-xs text-gray-500">Aucune colonne personnalisée créée.</p>
                   ) : (
                     <div className="space-y-1.5">
-                      {customColumns.map((col) => {
+                      {localCols.map((col) => {
                         const isSelect = col.type === 'SELECT' || col.type === 'MULTI-SELECT';
                         return (
                           <div
@@ -258,7 +286,7 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
               <div className="space-y-4 border-t md:border-t-0 md:border-l border-gray-100 dark:border-gray-800 md:pl-6">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
                   {selectedColumnId
-                    ? `Options pour "${customColumns.find(c => c.id === selectedColumnId)?.name}"`
+                    ? `Options pour "${localCols.find(c => c.id === selectedColumnId)?.name}"`
                     : "Sélectionnez une colonne Select"}
                 </h3>
 
@@ -271,7 +299,7 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
                           type="text"
                           value={newOptionLabel}
                           onChange={(e) => setNewOptionLabel(e.target.value)}
-                          placeholder="Ex: Confirmation M15, News high impact..."
+                          placeholder="Ex: Confirmation M15, Liquidity grab..."
                           className="w-full px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#141414] border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white"
                           required
                         />

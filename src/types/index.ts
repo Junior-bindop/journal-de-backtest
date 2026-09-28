@@ -111,7 +111,10 @@ export type FilterOperator =
   | 'less_than' 
   | 'in' 
   | 'is_empty' 
-  | 'is_not_empty';
+  | 'is_not_empty'
+  | 'year'
+  | 'month'
+  | 'range';
 
 export interface FilterCondition {
   id: string;

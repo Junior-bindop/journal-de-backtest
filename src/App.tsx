@@ -114,6 +114,7 @@ export const App: React.FC = () => {
           <AssociatesView
             allTrades={allTrades}
             onDataRefresh={handleDataRefresh}
+            onNavigateToTab={setActiveTab}
           />
         )}
 

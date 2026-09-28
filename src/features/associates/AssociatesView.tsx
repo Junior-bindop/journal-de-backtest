@@ -1,31 +1,29 @@
 import React, { useState } from 'react';
-import { Users, Lock, Unlock, ShieldCheck, ArrowRight, UserPlus, CheckCircle } from 'lucide-react';
+import { Users, Lock, Unlock, Eye, ArrowRight, CheckCircle, LogIn, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/features/auth/authContext';
-import { ProtectedActionModal } from '@/components/common/ProtectedActionModal';
 import { calculateTradeStats, formatR } from '@/utils/statistics';
 import type { Trade } from '@/types';
 
 interface AssociatesViewProps {
   allTrades: Trade[];
   onDataRefresh: () => void;
+  onNavigateToTab?: (tab: 'trades' | 'stats' | 'charts') => void;
 }
 
 export const AssociatesView: React.FC<AssociatesViewProps> = ({
   allTrades,
   onDataRefresh,
+  onNavigateToTab,
 }) => {
   const {
     currentUser,
     activeAssociate,
     allAssociates,
-    isOwner,
-    hasUnlockedCrossEdit,
     switchWorkspace,
-    lockCrossEdit,
+    logout,
   } = useAuth();
 
-  const [isProtectedModalOpen, setIsProtectedModalOpen] = useState(false);
-  const [targetAssociateToUnlock, setTargetAssociateToUnlock] = useState<string | null>(null);
+  const [promptSwitchUser, setPromptSwitchUser] = useState<string | null>(null);
 
   // Compute stats for each associate
   const associateStats = allAssociates.map((assoc) => {
@@ -37,19 +35,29 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
     };
   });
 
+  const handleConsultWorkspace = (associateId: string) => {
+    switchWorkspace(associateId);
+    if (onNavigateToTab) {
+      onNavigateToTab('trades');
+    }
+  };
+
+  const handleConfirmLoginAsAssociate = (targetUsername: string) => {
+    // Log out and prepare login screen
+    logout();
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-2">
-            <Users className="w-6 h-6 text-emerald-500" />
-            <span>Gestion des Associés & Espaces Indépendants</span>
-          </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Chaque associé dispose d'un espace de trades, captures et statistiques étanche. La consultation mutuelle est autorisée en lecture seule.
-          </p>
-        </div>
+      <div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-2">
+          <Users className="w-6 h-6 text-emerald-500" />
+          <span>Gestion des Associés & Consultation Immédiate</span>
+        </h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          Basculez en 1 clic pour consulter les trades, graphiques et statistiques de votre associé en lecture seule.
+        </p>
       </div>
 
       {/* Associates Cards Grid */}
@@ -80,7 +88,7 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
                       </h3>
                       {isMe && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                          Vous
+                          Votre compte connecté
                         </span>
                       )}
                     </div>
@@ -93,23 +101,14 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
                   {isActiveWorkspace && (
                     <span className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                       <CheckCircle className="w-3.5 h-3.5" />
-                      <span>Espace Actif</span>
+                      <span>Espace Actuellement Consulté</span>
                     </span>
                   )}
 
                   {!isMe && (
                     <span className="flex items-center space-x-1 text-[11px] text-gray-500 dark:text-gray-400">
-                      {hasUnlockedCrossEdit && isActiveWorkspace ? (
-                        <span className="flex items-center space-x-1 text-amber-500 font-semibold">
-                          <Unlock className="w-3 h-3" />
-                          <span>Déverrouillé</span>
-                        </span>
-                      ) : (
-                        <span className="flex items-center space-x-1">
-                          <Lock className="w-3 h-3" />
-                          <span>Lecture Seule</span>
-                        </span>
-                      )}
+                      <Lock className="w-3 h-3 text-blue-500" />
+                      <span>Lecture Seule</span>
                     </span>
                   )}
                 </div>
@@ -145,41 +144,29 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
 
               {/* Action Buttons */}
               <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
-                {!isActiveWorkspace ? (
-                  <button
-                    onClick={() => switchWorkspace(associate.id)}
-                    className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gray-900 dark:bg-emerald-600 hover:opacity-90 rounded-lg transition-opacity"
-                  >
-                    <span>Consulter cet espace</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <span className="text-xs text-gray-400 font-medium">Vous consultez cet espace</span>
-                )}
+                <button
+                  onClick={() => handleConsultWorkspace(associate.id)}
+                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                    isActiveWorkspace
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-gray-100 dark:bg-[#252525] text-gray-800 dark:text-gray-200 hover:bg-gray-200'
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>
+                    {isActiveWorkspace ? 'Voir les trades de cet espace' : 'Consulter cet espace'}
+                  </span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
 
-                {!isMe && isActiveWorkspace && (
-                  <div>
-                    {hasUnlockedCrossEdit ? (
-                      <button
-                        onClick={lockCrossEdit}
-                        className="flex items-center space-x-1 text-xs text-amber-500 hover:underline"
-                      >
-                        <Lock className="w-3 h-3" />
-                        <span>Verrouiller</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setTargetAssociateToUnlock(associate.username);
-                          setIsProtectedModalOpen(true);
-                        }}
-                        className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg border border-amber-500/30 transition-colors"
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        <span>Déverrouiller modifications</span>
-                      </button>
-                    )}
-                  </div>
+                {!isMe && (
+                  <button
+                    onClick={() => setPromptSwitchUser(associate.username)}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>Se connecter en tant que {associate.username}</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -187,27 +174,41 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
         })}
       </div>
 
-      {/* Cross-Associate Security Info Box (Section 38 & 39) */}
-      <div className="p-5 bg-blue-500/5 border border-blue-500/20 rounded-2xl">
-        <h4 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-1">
-          Règle de Sécurité des Permissions
-        </h4>
-        <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-          Lorsqu'un associé consulte l'espace d'un confrère, toutes les opérations de modification, d'ajout ou de suppression sont verrouillées en lecture seule. Pour modifier temporairement les données d'un autre associé, le mot de passe de celui-ci est exigé et vérifié cryptographiquement par le serveur.
-        </p>
-      </div>
+      {/* Redirection / Switch Modal when attempting to modify another associate's space */}
+      {promptSwitchUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center space-x-2.5 text-amber-600 dark:text-amber-400 font-bold text-base">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <span>Changer d'associé</span>
+            </div>
 
-      {/* Protected Modal */}
-      {isProtectedModalOpen && (
-        <ProtectedActionModal
-          isOpen={isProtectedModalOpen}
-          onClose={() => setIsProtectedModalOpen(false)}
-          onSuccess={() => {
-            setIsProtectedModalOpen(false);
-            onDataRefresh();
-          }}
-          actionDescription={`modifier l'espace de ${targetAssociateToUnlock || activeAssociate?.username}`}
-        />
+            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+              Ces données appartiennent à <strong>{promptSwitchUser}</strong>.
+              Vous êtes actuellement connecté en tant que <strong>{currentUser?.username}</strong>.
+              <br /><br />
+              Voulez-vous vous connecter en tant que <strong>{promptSwitchUser}</strong> pour modifier cet espace ?
+            </p>
+
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => setPromptSwitchUser(null)}
+                className="px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmLoginAsAssociate(promptSwitchUser)}
+                className="flex items-center space-x-1.5 px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Se connecter en tant que {promptSwitchUser}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
