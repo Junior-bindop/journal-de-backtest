@@ -72,18 +72,18 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Step 2: Check if this device has local data that hasn't been pushed yet.
         // If the cloud was empty or if we have local trades that aren't marked 'synced',
         // push everything up. This handles first-time migration from local-only to cloud.
-        const hasEverPushed = localStorage.getItem('supabase_initial_push_done');
+        const hasEverPushed = localStorage.getItem('supabase_initial_push_done_v2');
         if (!hasEverPushed && result.pulled) {
           const localTrades = await db.trades.toArray();
           const localUsers = await db.users.toArray();
           if (localTrades.length > 0 || localUsers.length > 0) {
             console.log('[Sync] First connection detected with local data. Pushing all data to cloud...');
             await SyncService.pushAllData();
-            localStorage.setItem('supabase_initial_push_done', 'true');
+            localStorage.setItem('supabase_initial_push_done_v2', 'true');
             console.log('[Sync] Initial push complete.');
           } else {
             // No local data, nothing to push. Mark as done so we don't check again.
-            localStorage.setItem('supabase_initial_push_done', 'true');
+            localStorage.setItem('supabase_initial_push_done_v2', 'true');
           }
         }
       } catch (err: any) {
