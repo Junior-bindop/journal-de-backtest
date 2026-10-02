@@ -236,6 +236,11 @@ export class SyncService {
       const { data: cloudTrades, error: tradesErr } = await supabase.from('trades').select('*');
       if (tradesErr) throw tradesErr;
       if (cloudTrades) {
+        const cloudIds = new Set(cloudTrades.map(t => t.id));
+        const localTrades = await db.trades.toArray();
+        for (const local of localTrades) {
+          if (!cloudIds.has(local.id)) await db.trades.delete(local.id);
+        }
         for (const ct of cloudTrades) {
           const local = await db.trades.get(ct.id);
           if (!local || ct.updated_at > local.updated_at) {
@@ -265,6 +270,11 @@ export class SyncService {
       const { data: cloudCols, error: colsErr } = await supabase.from('custom_columns').select('*');
       if (colsErr) throw colsErr;
       if (cloudCols) {
+        const cloudIds = new Set(cloudCols.map(c => c.id));
+        const localCols = await db.custom_columns.toArray();
+        for (const local of localCols) {
+          if (!cloudIds.has(local.id)) await db.custom_columns.delete(local.id);
+        }
         for (const cc of cloudCols) {
           const local = await db.custom_columns.get(cc.id);
           if (!local || cc.updated_at > local.updated_at) {
@@ -286,6 +296,11 @@ export class SyncService {
       const { data: cloudOpts, error: optsErr } = await supabase.from('select_options').select('*');
       if (optsErr) throw optsErr;
       if (cloudOpts) {
+        const cloudIds = new Set(cloudOpts.map(o => o.id));
+        const localOpts = await db.select_options.toArray();
+        for (const local of localOpts) {
+          if (!cloudIds.has(local.id)) await db.select_options.delete(local.id);
+        }
         for (const co of cloudOpts) {
           const local = await db.select_options.get(co.id);
           if (!local) {
