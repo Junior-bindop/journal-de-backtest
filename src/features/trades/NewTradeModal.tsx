@@ -3,6 +3,7 @@ import { X, Plus, Upload, Image as ImageIcon, Calendar, Sparkles } from 'lucide-
 import { db } from '@/lib/db';
 import { generateUUID } from '@/utils/crypto';
 import { ImageService } from '@/lib/storage/imageService';
+import { SyncService } from '@/lib/sync/syncService';
 import type { Trade, CustomColumn, SelectOption, PositionType, ResultType, TradeCustomValue } from '@/types';
 
 interface NewTradeModalProps {
@@ -34,7 +35,15 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
   const [notes, setNotes] = useState('');
 
   // Custom values map: columnId -> value
-  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({});
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>(() => {
+    const initial: Record<string, any> = {};
+    customColumns.forEach(c => {
+      if (c.type === 'CHECKBOX') initial[c.id] = false;
+      else if (c.type === 'MULTI-SELECT') initial[c.id] = [];
+      else initial[c.id] = '';
+    });
+    return initial;
+  });
 
   // Image files to attach
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -158,6 +167,10 @@ export const NewTradeModal: React.FC<NewTradeModalProps> = ({
       if (customValueInserts.length > 0) {
         await db.trade_custom_values.bulkAdd(customValueInserts);
       }
+
+      // Push to Supabase immediately
+      SyncService.pushTrade(newTrade).catch(console.error);
+      customValueInserts.forEach(cv => SyncService.pushTradeCustomValue(cv).catch(console.error));
 
       // Process and attach images if any
       if (attachedFiles.length > 0) {

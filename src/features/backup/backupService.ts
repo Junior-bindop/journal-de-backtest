@@ -196,7 +196,15 @@ export class BackupService {
    */
   static async exportCSV(userId: string, username: string): Promise<void> {
     const trades = await db.trades.where('user_id').equals(userId).toArray();
-    const activeTrades = trades.filter(t => !t.deleted_at);
+    let activeTrades = trades.filter(t => !t.deleted_at);
+
+    // Recompute trade numbers chronologically
+    activeTrades.sort((a, b) => {
+      const cmp = a.date.localeCompare(b.date);
+      if (cmp !== 0) return cmp;
+      return a.created_at.localeCompare(b.created_at);
+    });
+    activeTrades = activeTrades.map((t, index) => ({ ...t, trade_number: index + 1 }));
 
     const rows = activeTrades.map(t => ({
       'N°': t.trade_number,

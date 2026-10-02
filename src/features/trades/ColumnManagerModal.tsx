@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Settings, Tag, Palette } from 'lucide-react';
 import { db } from '@/lib/db';
 import { generateUUID } from '@/utils/crypto';
+import { SyncService } from '@/lib/sync/syncService';
 import type { CustomColumn, SelectOption, ColumnDataType } from '@/types';
 
 interface ColumnManagerModalProps {
@@ -87,6 +88,7 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
 
     // Persist async
     await db.custom_columns.add(newCol);
+    SyncService.pushCustomColumn(newCol).catch(console.error);
     onColumnsChanged();
   };
 
@@ -102,6 +104,7 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
     await db.custom_columns.delete(columnId);
     await db.select_options.where('column_id').equals(columnId).delete();
     await db.trade_custom_values.where('column_id').equals(columnId).delete();
+    SyncService.deleteFromCloud('custom_columns', columnId).catch(console.error);
     onColumnsChanged();
   };
 
@@ -127,6 +130,7 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
 
     // Persist async
     await db.select_options.add(newOpt);
+    SyncService.pushSelectOption(newOpt).catch(console.error);
     onColumnsChanged();
   };
 
@@ -136,6 +140,7 @@ export const ColumnManagerModal: React.FC<ColumnManagerModalProps> = ({
 
     // Persist async
     await db.select_options.delete(optionId);
+    SyncService.deleteFromCloud('select_options', optionId).catch(console.error);
     onColumnsChanged();
   };
 

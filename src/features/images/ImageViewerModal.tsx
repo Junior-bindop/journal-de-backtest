@@ -190,7 +190,7 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
     }
   };
 
-  const imageSrc = currentImage.data_url || currentImage.storage_path;
+  const imageSrc = ImageService.getImageUrl(currentImage, 'full');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md select-none">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Trash2, Calendar, Upload, Image as ImageIcon } from 'lucide-react';
 import { db } from '@/lib/db';
 import { ImageService } from '@/lib/storage/imageService';
+import { SyncService } from '@/lib/sync/syncService';
 import type { Trade, CustomColumn, SelectOption, PositionType, ResultType, TradeCustomValue, TradeImage } from '@/types';
 
 interface EditTradeModalProps {
@@ -55,6 +56,10 @@ export const EditTradeModal: React.FC<EditTradeModalProps> = ({
         else if (col.type === 'NUMBER') map[col.id] = v.value_number;
         else if (col.type === 'MULTI-SELECT') map[col.id] = v.value_json || [];
         else map[col.id] = v.value_text || v.value_date || '';
+      } else {
+        if (col.type === 'CHECKBOX') map[col.id] = false;
+        else if (col.type === 'MULTI-SELECT') map[col.id] = [];
+        else map[col.id] = '';
       }
     }
     setCustomFieldValues(map);
@@ -136,6 +141,12 @@ export const EditTradeModal: React.FC<EditTradeModalProps> = ({
           updated_at: new Date().toISOString(),
         };
         await db.trade_custom_values.put(record);
+        SyncService.pushTradeCustomValue(record).catch(console.error);
+      }
+
+      const updatedTrade = await db.trades.get(trade.id);
+      if (updatedTrade) {
+        SyncService.pushTrade(updatedTrade).catch(console.error);
       }
 
       // Upload newly attached images
@@ -304,6 +315,67 @@ export const EditTradeModal: React.FC<EditTradeModalProps> = ({
             </div>
           </div>
 
+          {/* Dynamic Custom Columns if defined */}
+          {customColumns.length > 0 && (
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-800 space-y-3">
+              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                Colonnes Personnalisées
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {customColumns.map((col) => {
+                  const colOptions = selectOptions.filter(o => o.column_id === col.id);
+
+                  if (col.type === 'SELECT') {
+                    return (
+                      <div key={col.id}>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">{col.name}</label>
+                        <select
+                          value={customFieldValues[col.id] || ''}
+                          onChange={(e) => setCustomFieldValues({ ...customFieldValues, [col.id]: e.target.value })}
+                          className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-[#141414] border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white"
+                        >
+                          <option value="">Sélectionner...</option>
+                          {colOptions.map(o => (
+                            <option key={o.id} value={o.id}>{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
+
+                  if (col.type === 'CHECKBOX') {
+                    return (
+                      <div key={col.id} className="flex items-center space-x-2 pt-4">
+                        <input
+                          type="checkbox"
+                          id={`col_${col.id}`}
+                          checked={Boolean(customFieldValues[col.id])}
+                          onChange={(e) => setCustomFieldValues({ ...customFieldValues, [col.id]: e.target.checked })}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <label htmlFor={`col_${col.id}`} className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                          {col.name}
+                        </label>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={col.id}>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">{col.name}</label>
+                      <input
+                        type={col.type === 'NUMBER' ? 'number' : col.type === 'DATE' ? 'date' : 'text'}
+                        value={customFieldValues[col.id] || ''}
+                        onChange={(e) => setCustomFieldValues({ ...customFieldValues, [col.id]: e.target.value })}
+                        className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-[#141414] border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Notes */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Notes</label>
@@ -332,7 +404,7 @@ export const EditTradeModal: React.FC<EditTradeModalProps> = ({
                     className="relative w-16 h-16 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity bg-black/10 group"
                   >
                     <img
-                      src={img.thumbnail_data_url || img.data_url || img.storage_path}
+                      src={ImageService.getImageUrl(img, 'thumbnail')}
                       alt=""
                       className="w-full h-full object-cover"
                     />

@@ -6,7 +6,7 @@ export const AuthPage: React.FC = () => {
   const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(() => localStorage.getItem('last_username') || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

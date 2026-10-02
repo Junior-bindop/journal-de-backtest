@@ -34,118 +34,39 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
       return;
     }
 
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(node => node.outerHTML)
+      .join('\n');
+
     const html = `
       <!DOCTYPE html>
       <html>
         <head>
           <title>Rapport Backtest — ${associateName}</title>
+          ${styles}
           <style>
-            @page {
-              size: A4 landscape;
-              margin: 12mm;
+            @media print {
+              * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+              @page {
+                size: A4 landscape;
+                margin: 12mm;
+              }
             }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-              color: #111827;
-              background: #fff;
-              margin: 0;
-              padding: 0;
-              font-size: 11px;
-            }
-            .header {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              border-bottom: 2px solid #10b981;
-              padding-bottom: 10px;
-              margin-bottom: 12px;
-            }
-            .title {
-              font-size: 18px;
-              font-weight: bold;
-              color: #065f46;
-            }
-            .meta {
-              font-size: 10px;
-              color: #4b5563;
-              text-align: right;
-            }
-            .kpis {
-              display: flex;
-              gap: 10px;
-              margin-bottom: 14px;
-            }
-            .kpi-card {
-              flex: 1;
-              background: #f9fafb;
-              border: 1px solid #e5e7eb;
-              border-radius: 6px;
-              padding: 8px 10px;
-              text-align: center;
-            }
-            .kpi-label {
-              font-size: 9px;
-              color: #6b7280;
-              text-transform: uppercase;
-              font-weight: 600;
-            }
-            .kpi-value {
-              font-size: 15px;
-              font-weight: bold;
-              font-family: monospace;
-              margin-top: 2px;
-            }
-            .text-green { color: #059669; }
-            .text-red { color: #dc2626; }
-            .text-gray { color: #4b5563; }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              font-size: 10px;
-            }
-            th {
-              background: #f3f4f6;
-              border-bottom: 1.5px solid #d1d5db;
-              text-align: left;
-              padding: 6px 8px;
-              font-weight: 700;
-              color: #374151;
-            }
-            td {
-              padding: 5px 8px;
-              border-bottom: 1px solid #e5e7eb;
-            }
-            tr:nth-child(even) td {
-              background: #fafafa;
-            }
-            .badge {
-              display: inline-block;
-              padding: 2px 5px;
-              border-radius: 4px;
-              font-size: 9px;
-              font-weight: 700;
-            }
-            .badge-tp { background: #d1fae5; color: #065f46; }
-            .badge-sl { background: #fee2e2; color: #991b1b; }
-            .badge-be { background: #f3f4f6; color: #4b5563; }
-            .badge-buy { background: #dcfce7; color: #166534; }
-            .badge-sell { background: #ffe4e6; color: #9f1239; }
-            .footer {
-              margin-top: 15px;
-              text-align: center;
-              font-size: 9px;
-              color: #9ca3af;
-              border-top: 1px solid #e5e7eb;
-              padding-top: 6px;
-            }
+            body { background: white !important; margin: 0; padding: 0; }
           </style>
         </head>
-        <body>
+        <body class="bg-white">
           ${printContent.innerHTML}
           <script>
             window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
+              setTimeout(function() {
+                window.print();
+                setTimeout(function() { window.close(); }, 500);
+              }, 500);
             };
           </script>
         </body>

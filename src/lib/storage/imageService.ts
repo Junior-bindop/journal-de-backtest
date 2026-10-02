@@ -1,6 +1,8 @@
 import { db } from '@/lib/db';
 import { processTradeImage, type ProcessedImage } from '@/utils/imageProcessor';
 import { generateUUID } from '@/utils/crypto';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { SyncService } from '@/lib/sync/syncService';
 import type { TradeImage } from '@/types';
 
 /**
@@ -79,26 +81,50 @@ export class ImageService {
 
       await db.trade_images.add(imageRecord);
 
-      // Queue sync operation for cloud push
-      await db.sync_queue.add({
-        id: generateUUID(),
-        user_id: userId,
-        entity_type: 'trade_image',
-        entity_id: imageRecord.id,
-        operation: 'INSERT',
-        payload: {
-          ...imageRecord,
-          data_url: undefined, // don't bloat sync log with data url
-          thumbnail_data_url: undefined,
-        },
-        client_timestamp: new Date().toISOString(),
-        status: 'pending',
-      });
+      // Upload to Supabase Storage if configured
+      if (isSupabaseConfigured()) {
+        try {
+          const { error } = await supabase.storage
+            .from('trade_images')
+            .upload(processed.storagePath, processed.originalBlob, {
+              contentType: 'image/webp',
+              upsert: true,
+            });
+          if (error) console.error('Supabase upload error:', error);
+          
+          await supabase.storage
+            .from('trade_images')
+            .upload(processed.thumbnailPath, processed.thumbnailBlob, {
+              contentType: 'image/webp',
+              upsert: true,
+            });
+
+          // Sync metadata to Supabase DB
+          await SyncService.pushTradeImage(imageRecord);
+        } catch (err) {
+          console.error('Failed to sync image to cloud:', err);
+        }
+      }
 
       addedRecords.push(imageRecord);
     }
 
     return addedRecords;
+  }
+
+  /**
+   * Get the public URL or local data URL for an image.
+   */
+  static getImageUrl(img: TradeImage, type: 'full' | 'thumbnail' = 'full'): string {
+    if (type === 'thumbnail' && img.thumbnail_data_url) return img.thumbnail_data_url;
+    if (type === 'full' && img.data_url) return img.data_url;
+    
+    if (isSupabaseConfigured() && img.storage_path) {
+      const path = type === 'thumbnail' && img.thumbnail_path ? img.thumbnail_path : img.storage_path;
+      return supabase.storage.from('trade_images').getPublicUrl(path).data.publicUrl;
+    }
+    
+    return '';
   }
 
   /**
@@ -164,24 +190,39 @@ export class ImageService {
 
     await db.trade_images.put(updatedRecord);
 
-    // Queue sync operation for update
-    await db.sync_queue.add({
-      id: generateUUID(),
-      user_id: oldImage.user_id,
-      entity_type: 'trade_image',
-      entity_id: oldImage.id,
-      operation: 'UPDATE',
-      payload: {
-        id: oldImage.id,
-        storage_path: processed.storagePath,
-        thumbnail_path: processed.thumbnailPath,
-        file_size: processed.fileSize,
-      },
-      client_timestamp: new Date().toISOString(),
-      status: 'pending',
-    });
+    // Upload to Supabase Storage if configured
+    if (isSupabaseConfigured()) {
+      try {
+        const { error } = await supabase.storage
+          .from('trade_images')
+          .upload(processed.storagePath, processed.originalBlob, {
+            contentType: 'image/webp',
+            upsert: true,
+          });
+        if (error) console.error('Supabase upload error:', error);
+        
+        await supabase.storage
+          .from('trade_images')
+          .upload(processed.thumbnailPath, processed.thumbnailBlob, {
+            contentType: 'image/webp',
+            upsert: true,
+          });
 
-    // Step 5: SUCCESS CONFIRMED. Now safely delete old blobs
+        await SyncService.pushTradeImage(updatedRecord);
+        
+        // Remove old files from storage
+        if (oldStoragePath !== processed.storagePath) {
+          await supabase.storage.from('trade_images').remove([oldStoragePath]);
+        }
+        if (oldThumbPath && oldThumbPath !== processed.thumbnailPath) {
+          await supabase.storage.from('trade_images').remove([oldThumbPath]);
+        }
+      } catch (err) {
+        console.error('Failed to sync updated image to cloud:', err);
+      }
+    }
+
+    // Step 5: SUCCESS CONFIRMED. Now safely delete old local blobs
     if (oldStoragePath !== processed.storagePath) {
       await db.offline_blobs.delete(oldStoragePath);
     }
@@ -210,17 +251,15 @@ export class ImageService {
       await db.offline_blobs.delete(img.thumbnail_path);
     }
 
-    // Queue delete operation
-    await db.sync_queue.add({
-      id: generateUUID(),
-      user_id: img.user_id,
-      entity_type: 'trade_image',
-      entity_id: imageId,
-      operation: 'DELETE',
-      payload: { id: imageId, storage_path: img.storage_path },
-      client_timestamp: new Date().toISOString(),
-      status: 'pending',
-    });
+    if (isSupabaseConfigured()) {
+      SyncService.deleteFromCloud('trade_images', imageId).catch(console.error);
+      const paths = [];
+      if (img.storage_path) paths.push(img.storage_path);
+      if (img.thumbnail_path) paths.push(img.thumbnail_path);
+      if (paths.length > 0) {
+        supabase.storage.from('trade_images').remove(paths).catch(console.error);
+      }
+    }
   }
 
   /**
@@ -235,16 +274,10 @@ export class ImageService {
       updated_at: new Date().toISOString(),
     });
 
-    await db.sync_queue.add({
-      id: generateUUID(),
-      user_id: img.user_id,
-      entity_type: 'trade_image',
-      entity_id: imageId,
-      operation: 'UPDATE',
-      payload: { id: imageId, comment },
-      client_timestamp: new Date().toISOString(),
-      status: 'pending',
-    });
+    const updatedImage = await db.trade_images.get(imageId);
+    if (updatedImage && isSupabaseConfigured()) {
+      SyncService.pushTradeImage(updatedImage).catch(console.error);
+    }
   }
 
   /**

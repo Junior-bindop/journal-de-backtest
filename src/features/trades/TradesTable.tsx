@@ -19,11 +19,14 @@ import { FilterBar } from './FilterBar';
 import { ColumnManagerModal } from './ColumnManagerModal';
 import { NewTradeModal } from './NewTradeModal';
 import { EditTradeModal } from './EditTradeModal';
+import { NotesModal } from './NotesModal';
 import { ImageViewerModal } from '../images/ImageViewerModal';
 import { PdfExportModal } from '@/features/backup/PdfExportModal';
 import { ProtectedActionModal } from '@/components/common/ProtectedActionModal';
 import { useAuth } from '@/features/auth/authContext';
 import { BackupService } from '@/features/backup/backupService';
+import { SyncService } from '@/lib/sync/syncService';
+import { ImageService } from '@/lib/storage/imageService';
 import type {
   Trade,
   CustomColumn,
@@ -65,6 +68,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
 
   // Edit Trade Modal state
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
+  const [editingNotesTrade, setEditingNotesTrade] = useState<Trade | null>(null);
 
   // Image Viewer state
   const [viewerImages, setViewerImages] = useState<TradeImage[]>([]);
@@ -84,6 +88,16 @@ export const TradesTable: React.FC<TradesTableProps> = ({
   ]);
   const [showTrash, setShowTrash] = useState(false);
 
+  // Pre-compute custom values map for O(1) lookups
+  const customValuesMap = useMemo(() => {
+    const map: Record<string, Record<string, TradeCustomValue>> = {};
+    for (const cv of customValues) {
+      if (!map[cv.trade_id]) map[cv.trade_id] = {};
+      map[cv.trade_id][cv.column_id] = cv;
+    }
+    return map;
+  }, [customValues]);
+
   // Check protection before any mutating action
   const executeWithProtection = useCallback((action: () => void) => {
     if (canEdit) {
@@ -94,9 +108,30 @@ export const TradesTable: React.FC<TradesTableProps> = ({
     }
   }, [canEdit]);
 
+  // Recompute trade numbers dynamically based on chronological order of active trades
+  const tradesWithDynamicNumbers = useMemo(() => {
+    const activeTrades = trades.filter(t => !t.deleted_at);
+    // Sort chronologically (oldest first)
+    const chronological = [...activeTrades].sort((a, b) => {
+      const cmp = a.date.localeCompare(b.date);
+      if (cmp !== 0) return cmp;
+      return a.created_at.localeCompare(b.created_at);
+    });
+    
+    const numberMap = new Map<string, number>();
+    chronological.forEach((t, index) => {
+      numberMap.set(t.id, index + 1);
+    });
+
+    return trades.map(t => ({
+      ...t,
+      trade_number: t.deleted_at ? t.trade_number : (numberMap.get(t.id) || t.trade_number)
+    }));
+  }, [trades]);
+
   // Robust Filter Evaluation including dates, numbers, assets
   const filteredTrades = useMemo(() => {
-    return trades.filter((t) => {
+    return tradesWithDynamicNumbers.filter((t) => {
       // Trash filter
       if (showTrash ? !t.deleted_at : t.deleted_at) {
         return false;
@@ -126,7 +161,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
 
         // Check if custom column
         if (val === undefined) {
-          const cv = customValues.find(v => v.trade_id === t.id && v.column_id === cond.columnKey);
+          const cv = customValuesMap[t.id]?.[cond.columnKey];
           val = cv?.value_text || cv?.value_number || cv?.value_date || '';
         }
 
@@ -192,7 +227,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
         return conditions.some(evalCondition);
       }
     });
-  }, [trades, showTrash, searchQuery, conditions, filterLogic, customValues]);
+  }, [tradesWithDynamicNumbers, showTrash, searchQuery, conditions, filterLogic, customValuesMap]);
 
   // Sort trades
   const sortedTrades = useMemo(() => {
@@ -231,10 +266,14 @@ export const TradesTable: React.FC<TradesTableProps> = ({
   // Soft delete trade
   const handleSoftDelete = (tradeId: string) => {
     executeWithProtection(async () => {
+      const now = new Date().toISOString();
       await db.trades.update(tradeId, {
-        deleted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        deleted_at: now,
+        updated_at: now,
+        sync_status: 'pending_update'
       });
+      const t = await db.trades.get(tradeId);
+      if (t) SyncService.pushTrade(t).catch(console.error);
       onDataRefresh();
     });
   };
@@ -245,7 +284,10 @@ export const TradesTable: React.FC<TradesTableProps> = ({
       await db.trades.update(tradeId, {
         deleted_at: null,
         updated_at: new Date().toISOString(),
+        sync_status: 'pending_update'
       });
+      const t = await db.trades.get(tradeId);
+      if (t) SyncService.pushTrade(t).catch(console.error);
       onDataRefresh();
     });
   };
@@ -257,6 +299,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
       await db.trades.delete(tradeId);
       await db.trade_custom_values.where('trade_id').equals(tradeId).delete();
       await db.trade_images.where('trade_id').equals(tradeId).delete();
+      SyncService.deleteFromCloud('trades', tradeId).catch(console.error);
       onDataRefresh();
     });
   };
@@ -268,6 +311,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
       await db.custom_columns.delete(colId);
       await db.select_options.where('column_id').equals(colId).delete();
       await db.trade_custom_values.where('column_id').equals(colId).delete();
+      SyncService.deleteFromCloud('custom_columns', colId).catch(console.error);
       onDataRefresh();
     });
   };
@@ -288,7 +332,10 @@ export const TradesTable: React.FC<TradesTableProps> = ({
         ...updates,
         updated_at: new Date().toISOString(),
         version: (trades.find(t => t.id === tradeId)?.version || 1) + 1,
+        sync_status: 'pending_update'
       });
+      const t = await db.trades.get(tradeId);
+      if (t) SyncService.pushTrade(t).catch(console.error);
       setInlineEditingCell(null);
       onDataRefresh();
     });
@@ -577,7 +624,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                         title={img.comment || `Capture ${idx + 1}`}
                       >
                         <img
-                          src={img.thumbnail_data_url || img.data_url || img.storage_path}
+                          src={ImageService.getImageUrl(img, 'thumbnail')}
                           alt=""
                           className="w-full h-full object-cover"
                         />
@@ -603,7 +650,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
 
                 {/* Dynamic Custom Column values */}
                 {customColumns.map(col => {
-                  const val = customValues.find(v => v.trade_id === trade.id && v.column_id === col.id);
+                  const val = customValuesMap[trade.id]?.[col.id];
                   let display = '-';
                   if (val) {
                     if (col.type === 'SELECT') {
@@ -623,16 +670,15 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                   );
                 })}
 
-                {/* Notes (Click to edit inline) */}
-                <div className="flex-1 min-w-[200px] px-2 py-1">
-                  <input
-                    type="text"
-                    value={trade.notes || ''}
-                    disabled={!canEdit}
-                    placeholder="Ajouter une note..."
-                    onChange={(e) => handleInlineUpdate(trade.id, { notes: e.target.value })}
-                    className="w-full px-2 py-1 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 rounded text-gray-700 dark:text-gray-300 placeholder-gray-400 focus:outline-none focus:bg-white dark:focus:bg-[#202020] border border-transparent focus:border-emerald-500"
-                  />
+                {/* Notes (Click to open modal) */}
+                <div 
+                  className="flex-1 min-w-[200px] px-2 py-1 cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors group flex items-center"
+                  onClick={() => executeWithProtection(() => setEditingNotesTrade(trade))}
+                >
+                  <span className="text-gray-700 dark:text-gray-300 truncate text-[11px]">
+                    {trade.notes ? trade.notes : <span className="text-gray-400 italic">Ajouter une note...</span>}
+                  </span>
+                  <Edit2 className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 ml-auto shrink-0" />
                 </div>
 
                 {/* Actions: Edit row & Delete/Restore */}
@@ -721,6 +767,17 @@ export const TradesTable: React.FC<TradesTableProps> = ({
           images={images}
           onTradeUpdated={onDataRefresh}
           onOpenImageViewer={handleOpenImageViewer}
+        />
+      )}
+
+      {/* Notes Modal */}
+      {editingNotesTrade && (
+        <NotesModal
+          isOpen={Boolean(editingNotesTrade)}
+          onClose={() => setEditingNotesTrade(null)}
+          trade={editingNotesTrade}
+          canEdit={canEdit}
+          onSave={(tradeId, newNotes) => handleInlineUpdate(tradeId, { notes: newNotes })}
         />
       )}
 

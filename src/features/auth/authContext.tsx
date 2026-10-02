@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '@/lib/db';
 import { hashPassword, verifyPassword, generateUUID } from '@/utils/crypto';
+import { SyncService } from '@/lib/sync/syncService';
 import type { User } from '@/types';
 
 interface AuthContextType {
@@ -50,8 +51,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const users = await db.users.toArray();
       setAllAssociates(users);
 
-      const savedUserId = sessionStorage.getItem('session_user_id') || localStorage.getItem('last_user_id');
-      const foundUser = users.find(u => u.id === savedUserId);
+      const sessionUserId = sessionStorage.getItem('session_user_id');
+      const foundUser = sessionUserId ? users.find(u => u.id === sessionUserId) : null;
 
       if (foundUser) {
         setCurrentUser(foundUser);
@@ -93,7 +94,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setActiveAssociate(user);
     setHasUnlockedCrossEdit(false);
     setTemporaryUnlockExpiresAt(null);
-    localStorage.setItem('last_user_id', user.id);
+    sessionStorage.setItem('session_user_id', user.id);
+    localStorage.setItem('last_username', user.username);
 
     return { success: true };
   };
@@ -125,18 +127,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await db.users.add(newUser);
 
     // Create user settings
-    await db.user_settings.add({
+    const newSettings = {
       id: generateUUID(),
       user_id: newUser.id,
-      theme: 'dark',
+      theme: 'dark' as const,
       table_preferences: {},
       updated_at: new Date().toISOString(),
-    });
+    };
+    await db.user_settings.add(newSettings);
+
+    // Push to cloud
+    SyncService.pushUser(newUser).catch(console.error);
+    SyncService.pushUserSettings(newSettings).catch(console.error);
 
     await refreshAssociates();
     setCurrentUser(newUser);
     setActiveAssociate(newUser);
-    localStorage.setItem('last_user_id', newUser.id);
+    sessionStorage.setItem('session_user_id', newUser.id);
+    localStorage.setItem('last_username', newUser.username);
 
     return { success: true };
   };
@@ -145,7 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(null);
     setActiveAssociate(null);
     setHasUnlockedCrossEdit(false);
-    localStorage.removeItem('last_user_id');
+    sessionStorage.removeItem('session_user_id');
   };
 
   const switchWorkspace = (associateId: string) => {
@@ -198,6 +206,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     await db.users.update(currentUser.id, updates);
+
+    // Push updated user to cloud
+    const updatedUser = await db.users.get(currentUser.id);
+    if (updatedUser) {
+      SyncService.pushUser(updatedUser).catch(console.error);
+    }
+
     await refreshAssociates();
     return { success: true };
   };
