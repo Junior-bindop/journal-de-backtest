@@ -57,14 +57,14 @@ export async function initializeDatabase(): Promise<void> {
   // Settings
   await db.user_settings.bulkAdd([
     {
-      id: generateUUID(),
+      id: `settings-${biniId}`,
       user_id: biniId,
       theme: 'dark',
       table_preferences: {},
       updated_at: new Date().toISOString(),
     },
     {
-      id: generateUUID(),
+      id: `settings-${linhoId}`,
       user_id: linhoId,
       theme: 'dark',
       table_preferences: {},
@@ -82,7 +82,7 @@ export async function initializeDatabase(): Promise<void> {
     color: string,
     sortOrder: number
   ): SelectOption => ({
-    id: generateUUID(),
+    id: `opt-${userId}-${key}-${label.replace(/\s+/g, '-').toLowerCase()}`,
     system_column_key: key,
     user_id: userId,
     label,
@@ -115,7 +115,7 @@ export async function initializeDatabase(): Promise<void> {
   await db.select_options.bulkAdd(defaultOptions);
 
   // Custom column example for BINI_JR
-  const setupColId = generateUUID();
+  const setupColId = `col-${biniId}-setup`;
   const customCols: CustomColumn[] = [
     {
       id: setupColId,
@@ -132,7 +132,7 @@ export async function initializeDatabase(): Promise<void> {
 
   const setupOptions: SelectOption[] = [
     {
-      id: generateUUID(),
+      id: `opt-${setupColId}-liq-grab`,
       column_id: setupColId,
       user_id: biniId,
       label: 'Liquidity Grab',
@@ -141,7 +141,7 @@ export async function initializeDatabase(): Promise<void> {
       created_at: new Date().toISOString(),
     },
     {
-      id: generateUUID(),
+      id: `opt-${setupColId}-fvg`,
       column_id: setupColId,
       user_id: biniId,
       label: 'FVG Retest',
@@ -150,7 +150,7 @@ export async function initializeDatabase(): Promise<void> {
       created_at: new Date().toISOString(),
     },
     {
-      id: generateUUID(),
+      id: `opt-${setupColId}-ob`,
       column_id: setupColId,
       user_id: biniId,
       label: 'Order Block',
@@ -161,10 +161,10 @@ export async function initializeDatabase(): Promise<void> {
   ];
   await db.select_options.bulkAdd(setupOptions);
 
-  // Seed sample realistic historical trades spanning 2006 to 2026
+  // Seed sample realistic historical trades
   const sampleTrades: Trade[] = [
     {
-      id: generateUUID(),
+      id: `trade-${biniId}-1`,
       user_id: biniId,
       trade_number: 1,
       date: '2006-03-15',
@@ -174,14 +174,14 @@ export async function initializeDatabase(): Promise<void> {
       rr: 2.5,
       session: 'LONDON',
       duration: '30-60',
-      notes: 'Premier trade historique backtest 2006. Cassure franche du plus haut asiatique.',
+      notes: 'Premier trade historique backtest 2006.',
       created_at: '2006-03-15T09:30:00Z',
       updated_at: '2006-03-15T09:30:00Z',
       version: 1,
       sync_status: 'synced',
     },
     {
-      id: generateUUID(),
+      id: `trade-${biniId}-2`,
       user_id: biniId,
       trade_number: 2,
       date: '2006-03-17',
@@ -197,91 +197,6 @@ export async function initializeDatabase(): Promise<void> {
       version: 1,
       sync_status: 'synced',
     },
-    {
-      id: generateUUID(),
-      user_id: biniId,
-      trade_number: 3,
-      date: '2008-09-15',
-      asset: 'XAUUSD',
-      position: 'BUY',
-      result: 'TP',
-      rr: 3.8,
-      session: 'LON-NEW',
-      duration: '180-360',
-      notes: 'Crise des subprimes, envolée or.',
-      created_at: '2008-09-15T11:00:00Z',
-      updated_at: '2008-09-15T11:00:00Z',
-      version: 1,
-      sync_status: 'synced',
-    },
-    {
-      id: generateUUID(),
-      user_id: biniId,
-      trade_number: 4,
-      date: '2015-01-15',
-      asset: 'EURUSD',
-      position: 'BUY',
-      result: 'BE',
-      rr: 0.0,
-      session: 'LONDON',
-      duration: '60-180',
-      notes: 'Sortie sécurisée à BE avant volatilité BNS.',
-      created_at: '2015-01-15T08:15:00Z',
-      updated_at: '2015-01-15T08:15:00Z',
-      version: 1,
-      sync_status: 'synced',
-    },
-    {
-      id: generateUUID(),
-      user_id: biniId,
-      trade_number: 5,
-      date: '2020-03-23',
-      asset: 'XAUUSD',
-      position: 'BUY',
-      result: 'TP',
-      rr: 4.25,
-      session: 'NEW YORK',
-      duration: '60-180',
-      notes: 'Rebond macroéconomique majeur.',
-      created_at: '2020-03-23T15:00:00Z',
-      updated_at: '2020-03-23T15:00:00Z',
-      version: 1,
-      sync_status: 'synced',
-    },
-    {
-      id: generateUUID(),
-      user_id: biniId,
-      trade_number: 6,
-      date: '2024-05-10',
-      asset: 'XAUUSD',
-      position: 'SELL',
-      result: 'TP',
-      rr: 2.0,
-      session: 'LONDON',
-      duration: '30-60',
-      notes: 'Prise de liquidité sommet européen puis continuation baissière.',
-      created_at: '2024-05-10T09:15:00Z',
-      updated_at: '2024-05-10T09:15:00Z',
-      version: 1,
-      sync_status: 'synced',
-    },
-    {
-      id: generateUUID(),
-      user_id: biniId,
-      trade_number: 7,
-      date: '2026-09-26',
-      asset: 'EURUSD',
-      position: 'BUY',
-      result: 'TP',
-      rr: 2.75,
-      session: 'LONDON',
-      duration: '15-30',
-      notes: 'Setup idéal 2026. Belle impulsion.',
-      created_at: '2026-09-26T08:45:00Z',
-      updated_at: '2026-09-26T08:45:00Z',
-      version: 1,
-      sync_status: 'synced',
-    },
   ];
 
   await db.trades.bulkAdd(sampleTrades);
@@ -289,7 +204,7 @@ export async function initializeDatabase(): Promise<void> {
   // Link trade 1 with custom value
   const sampleCustomValues: TradeCustomValue[] = [
     {
-      id: generateUUID(),
+      id: `val-${sampleTrades[0].id}-${setupColId}`,
       trade_id: sampleTrades[0].id,
       column_id: setupColId,
       value_text: setupOptions[0].id,
@@ -301,7 +216,7 @@ export async function initializeDatabase(): Promise<void> {
   // Linho trades
   const linhoTrades: Trade[] = [
     {
-      id: generateUUID(),
+      id: `trade-${linhoId}-1`,
       user_id: linhoId,
       trade_number: 1,
       date: '2024-01-10',
@@ -317,25 +232,8 @@ export async function initializeDatabase(): Promise<void> {
       version: 1,
       sync_status: 'synced',
     },
-    {
-      id: generateUUID(),
-      user_id: linhoId,
-      trade_number: 2,
-      date: '2024-01-12',
-      asset: 'EURUSD',
-      position: 'SELL',
-      result: 'SL',
-      rr: -1.0,
-      session: 'LONDON',
-      duration: '15-30',
-      notes: 'Fakeout.',
-      created_at: '2024-01-12T09:10:00Z',
-      updated_at: '2024-01-12T09:10:00Z',
-      version: 1,
-      sync_status: 'synced',
-    },
   ];
   await db.trades.bulkAdd(linhoTrades);
 
-  console.log('[DB] Initialization complete with initial users, options, and trades.');
+  console.log('[DB] Initialization complete with deterministic initial dataset.');
 }
