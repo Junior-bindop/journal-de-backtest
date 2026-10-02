@@ -652,12 +652,13 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                 {customColumns.map(col => {
                   const val = customValuesMap[trade.id]?.[col.id];
                   let display = '-';
-                  if (val) {
+                  
+                  if (col.type === 'CHECKBOX') {
+                    display = (val && val.value_boolean) ? '✓' : '✗';
+                  } else if (val) {
                     if (col.type === 'SELECT') {
                       const opt = selectOptions.find(o => o.id === val.value_text);
                       display = opt ? opt.label : val.value_text || '-';
-                    } else if (col.type === 'CHECKBOX') {
-                      display = val.value_boolean ? '✓' : '✗';
                     } else {
                       display = String(val.value_text || val.value_number || val.value_date || '-');
                     }
