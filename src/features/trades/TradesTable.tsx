@@ -12,6 +12,7 @@ import {
   MoreVertical,
   Check,
   ChevronDown,
+  X,
 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { formatR, calculateTradeStats } from '@/utils/statistics';
@@ -78,6 +79,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
 
   // Inline editing state for active cell
   const [inlineEditingCell, setInlineEditingCell] = useState<{ tradeId: string; field: string } | null>(null);
+  const [multiSelectPopup, setMultiSelectPopup] = useState<{ tradeId: string; colId: string } | null>(null);
 
   // Filters & Search & Sort state
   const [searchQuery, setSearchQuery] = useState('');
@@ -517,6 +519,8 @@ export const TradesTable: React.FC<TradesTableProps> = ({
 
             const tradeImgs = images.filter(img => img.trade_id === trade.id && !img.deleted_at);
 
+            const isRowPopupOpen = multiSelectPopup?.tradeId === trade.id;
+
             return (
               <div
                 key={trade.id}
@@ -528,6 +532,7 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                   left: 0,
                   width: '100%',
                   transform: `translateY(${virtualRow.start}px)`,
+                  zIndex: isRowPopupOpen ? 50 : 1,
                 }}
                 className={`flex items-center border-b border-gray-100 dark:border-gray-800/80 hover:bg-gray-50/80 dark:hover:bg-[#1a1a1a] transition-colors ${
                   trade.deleted_at ? 'opacity-60 bg-red-500/5' : ''
@@ -723,28 +728,81 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                   } else if (col.type === 'MULTI-SELECT') {
                     const selectedIds = (val?.value_json as string[]) || [];
                     const selectedOpts = selectOptions.filter(o => selectedIds.includes(o.id));
+                    const colOpts = selectOptions.filter(o => o.column_id === col.id);
+                    const isPopupOpen = multiSelectPopup?.tradeId === trade.id && multiSelectPopup?.colId === col.id;
                     
                     display = (
-                      <div 
-                        className="flex flex-wrap gap-1 items-center justify-center w-full h-full cursor-pointer"
-                        title="Cliquez sur le bouton Modifier (crayon) pour changer ces options"
-                      >
-                        {selectedOpts.length === 0 ? (
-                          <span className="text-gray-400">-</span>
-                        ) : (
-                          selectedOpts.map(o => (
-                            <span 
-                              key={o.id} 
-                              className="px-1.5 py-0.5 rounded text-[9px] font-bold border"
-                              style={{ 
-                                backgroundColor: `${o.color}20`, 
-                                color: o.color, 
-                                borderColor: `${o.color}50` 
-                              }}
-                            >
-                              {o.label}
-                            </span>
-                          ))
+                      <div className="relative w-full h-full flex items-center justify-center">
+                        <div 
+                          className="flex flex-wrap gap-1 items-center justify-center w-full h-full cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 rounded"
+                          onClick={() => {
+                            if (canEdit) {
+                              setMultiSelectPopup(isPopupOpen ? null : { tradeId: trade.id, colId: col.id });
+                            }
+                          }}
+                        >
+                          {selectedOpts.length === 0 ? (
+                            <span className="text-gray-400">-</span>
+                          ) : (
+                            selectedOpts.map(o => (
+                              <span 
+                                key={o.id} 
+                                className="px-1.5 py-0.5 rounded text-[9px] font-bold border"
+                                style={{ 
+                                  backgroundColor: `${o.color}20`, 
+                                  color: o.color, 
+                                  borderColor: `${o.color}50` 
+                                }}
+                              >
+                                {o.label}
+                              </span>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Dropdown Popup */}
+                        {isPopupOpen && (
+                          <div 
+                            className="absolute z-50 top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl p-2 text-left"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex justify-between items-center mb-2 px-1">
+                              <span className="text-[10px] font-bold text-gray-500 uppercase">Options ({col.name})</span>
+                              <button onClick={() => setMultiSelectPopup(null)} className="text-gray-400 hover:text-gray-700">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <div className="max-h-48 overflow-y-auto space-y-1">
+                              {colOpts.length === 0 ? (
+                                <div className="text-xs text-gray-400 text-center py-2">Aucune option</div>
+                              ) : colOpts.map(o => {
+                                const isSelected = selectedIds.includes(o.id);
+                                return (
+                                  <label
+                                    key={o.id}
+                                    className={`flex items-center space-x-2 px-2 py-1.5 rounded cursor-pointer text-xs font-bold transition-colors ${
+                                      isSelected
+                                        ? 'bg-black/5 dark:bg-white/10'
+                                        : 'hover:bg-gray-50 dark:hover:bg-[#222]'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        const newSelected = e.target.checked
+                                          ? [...selectedIds, o.id]
+                                          : selectedIds.filter(id => id !== o.id);
+                                        handleInlineCustomUpdate(trade.id, col, newSelected);
+                                      }}
+                                      className="w-3 h-3 rounded text-emerald-600"
+                                    />
+                                    <span style={{ color: o.color }}>{o.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
                         )}
                       </div>
                     );
@@ -774,7 +832,12 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                   }
 
                   return (
-                    <div key={col.id} className="w-32 px-2 py-1.5 shrink-0 border-r border-gray-100 dark:border-gray-800/60 truncate flex items-center justify-center">
+                    <div 
+                      key={col.id} 
+                      className={`w-32 px-2 py-1.5 shrink-0 border-r border-gray-100 dark:border-gray-800/60 flex items-center justify-center ${
+                        col.type === 'MULTI-SELECT' ? 'overflow-visible' : 'truncate'
+                      }`}
+                    >
                       {display}
                     </div>
                   );
