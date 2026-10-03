@@ -651,10 +651,15 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                 {/* Dynamic Custom Column values */}
                 {customColumns.map(col => {
                   const val = customValuesMap[trade.id]?.[col.id];
-                  let display = '-';
+                  let display: React.ReactNode = '-';
                   
                   if (col.type === 'CHECKBOX') {
-                    display = (val && val.value_boolean) ? '✓' : '✗';
+                    const isChecked = val && val.value_boolean;
+                    display = isChecked ? (
+                      <span className="text-emerald-500 font-bold text-sm">✓</span>
+                    ) : (
+                      <span className="text-red-500 font-bold text-sm">✗</span>
+                    );
                   } else if (val) {
                     if (col.type === 'SELECT') {
                       const opt = selectOptions.find(o => o.id === val.value_text);
