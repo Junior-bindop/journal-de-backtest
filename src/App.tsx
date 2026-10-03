@@ -103,7 +103,12 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'stats' && (
-          <StatisticsView trades={trades} />
+          <StatisticsView
+            trades={trades}
+            customColumns={customColumns}
+            customValues={customValues}
+            selectOptions={selectOptions}
+          />
         )}
 
         {activeTab === 'charts' && (
