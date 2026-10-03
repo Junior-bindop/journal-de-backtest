@@ -343,6 +343,50 @@ export const EditTradeModal: React.FC<EditTradeModalProps> = ({
                     );
                   }
 
+                  if (col.type === 'MULTI-SELECT') {
+                    const selectedIds = (customFieldValues[col.id] as string[]) || [];
+                    return (
+                      <div key={col.id} className="col-span-1 sm:col-span-2">
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">{col.name}</label>
+                        <div className="flex flex-wrap gap-2 p-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-[#141414] min-h-[42px]">
+                          {colOptions.length === 0 ? (
+                            <span className="text-xs text-gray-400">Aucune option définie.</span>
+                          ) : colOptions.map(o => {
+                            const isSelected = selectedIds.includes(o.id);
+                            return (
+                              <label
+                                key={o.id}
+                                className={`flex items-center space-x-1.5 px-2 py-1 rounded cursor-pointer text-[11px] font-bold border transition-colors ${
+                                  isSelected
+                                    ? 'bg-black/5 dark:bg-white/10'
+                                    : 'bg-white dark:bg-[#222] border-gray-200 dark:border-gray-800 text-gray-500 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                                style={isSelected ? {
+                                  backgroundColor: `${o.color}20`,
+                                  borderColor: `${o.color}50`,
+                                  color: o.color,
+                                } : {}}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="sr-only"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const newSelected = e.target.checked
+                                      ? [...selectedIds, o.id]
+                                      : selectedIds.filter(id => id !== o.id);
+                                    setCustomFieldValues({ ...customFieldValues, [col.id]: newSelected });
+                                  }}
+                                />
+                                <span>{o.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+
                   if (col.type === 'CHECKBOX') {
                     return (
                       <div key={col.id} className="flex items-center space-x-2 pt-4">

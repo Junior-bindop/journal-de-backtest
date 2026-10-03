@@ -720,6 +720,34 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                         ))}
                       </select>
                     );
+                  } else if (col.type === 'MULTI-SELECT') {
+                    const selectedIds = (val?.value_json as string[]) || [];
+                    const selectedOpts = selectOptions.filter(o => selectedIds.includes(o.id));
+                    
+                    display = (
+                      <div 
+                        className="flex flex-wrap gap-1 items-center justify-center w-full h-full cursor-pointer"
+                        title="Cliquez sur le bouton Modifier (crayon) pour changer ces options"
+                      >
+                        {selectedOpts.length === 0 ? (
+                          <span className="text-gray-400">-</span>
+                        ) : (
+                          selectedOpts.map(o => (
+                            <span 
+                              key={o.id} 
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold border"
+                              style={{ 
+                                backgroundColor: `${o.color}20`, 
+                                color: o.color, 
+                                borderColor: `${o.color}50` 
+                              }}
+                            >
+                              {o.label}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    );
                   } else {
                     // NUMBER, TEXT, DATE
                     const inputType = col.type === 'NUMBER' ? 'number' : col.type === 'DATE' ? 'date' : 'text';
