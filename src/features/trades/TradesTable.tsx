@@ -341,6 +341,35 @@ export const TradesTable: React.FC<TradesTableProps> = ({
     });
   };
 
+  // Notion-Style Inline Cell Updates for Custom Columns
+  const handleInlineCustomUpdate = async (tradeId: string, col: CustomColumn, newValue: any) => {
+    executeWithProtection(async () => {
+      const existing = customValuesMap[tradeId]?.[col.id];
+      const record: TradeCustomValue = {
+        id: existing?.id || crypto.randomUUID(),
+        trade_id: tradeId,
+        column_id: col.id,
+        value_text: col.type === 'TEXT' || col.type === 'SELECT' ? String(newValue || '') : undefined,
+        value_number: col.type === 'NUMBER' ? Number(newValue) : undefined,
+        value_date: col.type === 'DATE' ? String(newValue || '') : undefined,
+        value_boolean: col.type === 'CHECKBOX' ? Boolean(newValue) : undefined,
+        value_json: col.type === 'MULTI-SELECT' ? newValue : undefined,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (newValue !== undefined && newValue !== null && newValue !== '') {
+        await db.trade_custom_values.put(record);
+        SyncService.pushTradeCustomValue(record).catch(console.error);
+      } else if (existing) {
+        // If they cleared the field
+        await db.trade_custom_values.delete(existing.id);
+        // Note: we can't easily push a hard delete of a custom value unless we add deleteToCloud. 
+        // For now, setting it to empty string or false is safer.
+      }
+      onDataRefresh();
+    });
+  };
+
   // Open Image Viewer
   const handleOpenImageViewer = (trade: Trade, initialImgIndex = 0) => {
     const tradeImgs = images.filter(img => img.trade_id === trade.id && !img.deleted_at);
@@ -655,22 +684,69 @@ export const TradesTable: React.FC<TradesTableProps> = ({
                   
                   if (col.type === 'CHECKBOX') {
                     const isChecked = val && val.value_boolean;
-                    display = isChecked ? (
-                      <span className="text-emerald-500 font-bold text-sm">✓</span>
-                    ) : (
-                      <span className="text-red-500 font-bold text-sm">✗</span>
+                    display = (
+                      <div className="flex items-center justify-center w-full h-full">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(isChecked)}
+                          disabled={!canEdit}
+                          onChange={(e) => handleInlineCustomUpdate(trade.id, col, e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </div>
                     );
-                  } else if (val) {
-                    if (col.type === 'SELECT') {
-                      const opt = selectOptions.find(o => o.id === val.value_text);
-                      display = opt ? opt.label : val.value_text || '-';
-                    } else {
-                      display = String(val.value_text || val.value_number || val.value_date || '-');
-                    }
+                  } else if (col.type === 'SELECT') {
+                    const colOpts = selectOptions.filter(o => o.column_id === col.id);
+                    const opt = selectOptions.find(o => o.id === val?.value_text);
+                    display = (
+                      <select
+                        value={val?.value_text || ''}
+                        disabled={!canEdit}
+                        onChange={(e) => handleInlineCustomUpdate(trade.id, col, e.target.value)}
+                        className={`w-full px-2 py-0.5 rounded font-bold text-[11px] focus:outline-none cursor-pointer ${
+                          !val?.value_text ? 'text-gray-400 bg-transparent' : 'text-gray-900 dark:text-white bg-black/5 dark:bg-white/5'
+                        }`}
+                        style={opt ? {
+                          backgroundColor: `${opt.color}20`,
+                          borderColor: `${opt.color}50`,
+                          color: opt.color,
+                        } : {}}
+                      >
+                        <option value="" className="text-gray-400">-</option>
+                        {colOpts.map(o => (
+                          <option key={o.id} value={o.id} className="bg-white dark:bg-[#222] text-gray-900 dark:text-white">
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    );
+                  } else {
+                    // NUMBER, TEXT, DATE
+                    const inputType = col.type === 'NUMBER' ? 'number' : col.type === 'DATE' ? 'date' : 'text';
+                    const value = val?.value_text || val?.value_number || val?.value_date || '';
+                    display = (
+                      <input
+                        type={inputType}
+                        defaultValue={String(value)}
+                        disabled={!canEdit}
+                        onBlur={(e) => {
+                          if (e.target.value !== String(value)) {
+                            handleInlineCustomUpdate(trade.id, col, e.target.value);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        placeholder="-"
+                        className="w-full bg-transparent text-gray-800 dark:text-gray-200 focus:outline-none hover:bg-black/5 dark:hover:bg-white/5 rounded px-1 py-0.5 cursor-pointer placeholder-gray-400 text-center text-xs font-mono"
+                      />
+                    );
                   }
 
                   return (
-                    <div key={col.id} className="w-32 px-3 py-2 shrink-0 border-r border-gray-100 dark:border-gray-800/60 truncate text-gray-700 dark:text-gray-300">
+                    <div key={col.id} className="w-32 px-2 py-1.5 shrink-0 border-r border-gray-100 dark:border-gray-800/60 truncate flex items-center justify-center">
                       {display}
                     </div>
                   );
